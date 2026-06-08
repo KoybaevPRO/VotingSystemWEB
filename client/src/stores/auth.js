@@ -1,0 +1,52 @@
+import { defineStore } from 'pinia'
+import { ref, computed } from 'vue'
+import api from '../api'
+
+export const useAuthStore = defineStore('auth', () => {
+  const user = ref(JSON.parse(localStorage.getItem('user') || 'null'))
+  const token = ref(localStorage.getItem('token') || '')
+
+  const isAuthenticated = computed(() => !!token.value)
+  const fullName = computed(() => {
+    if (!user.value) return ''
+    return `${user.value.firstName} ${user.value.lastName}`
+  })
+
+  async function login(email, password) {
+    const { data } = await api.post('/auth/login', { email, password })
+    setAuth(data)
+    return data
+  }
+
+  async function register(email, password, firstName, lastName) {
+    const { data } = await api.post('/auth/register', { email, password, firstName, lastName })
+    setAuth(data)
+    return data
+  }
+
+  async function fetchUser() {
+    try {
+      const { data } = await api.get('/auth/me')
+      user.value = data
+      localStorage.setItem('user', JSON.stringify(data))
+    } catch {
+      logout()
+    }
+  }
+
+  function setAuth(data) {
+    token.value = data.token
+    user.value = data
+    localStorage.setItem('token', data.token)
+    localStorage.setItem('user', JSON.stringify(data))
+  }
+
+  function logout() {
+    token.value = ''
+    user.value = null
+    localStorage.removeItem('token')
+    localStorage.removeItem('user')
+  }
+
+  return { user, token, isAuthenticated, fullName, login, register, fetchUser, logout }
+})

@@ -1,126 +1,165 @@
 <template>
-  <div v-if="loading" class="text-center py-5">
-    <div class="spinner-border text-primary" role="status"></div>
-  </div>
+  <div v-if="candidate" class="details">
+    <RouterLink to="/candidates" class="back">← Назад к списку</RouterLink>
 
-  <div v-else-if="error" class="alert alert-danger">{{ error }}</div>
-
-  <template v-else-if="candidate">
-    <nav aria-label="breadcrumb">
-      <ol class="breadcrumb">
-        <li class="breadcrumb-item"><router-link to="/candidates">Кандидаты</router-link></li>
-        <li class="breadcrumb-item active">{{ candidate.fullName }}</li>
-      </ol>
-    </nav>
-
-    <div class="row">
-      <div class="col-md-8">
-        <div class="card mb-4 shadow-sm">
-          <div class="card-body">
-            <div class="d-flex align-items-center mb-3">
-              <img :src="candidate.photoUrl" :alt="candidate.fullName" width="64" height="64" class="me-3" @error="e => e.target.style.display='none'" />
-              <div>
-                <h2 class="card-title mb-1">{{ candidate.fullName }}</h2>
-                <span class="badge bg-secondary">{{ candidate.category }}</span>
-              </div>
-            </div>
-            <h5 class="mt-4">Описание</h5>
-            <p class="card-text">{{ candidate.description }}</p>
-            <h5>Биография</h5>
-            <p class="card-text">{{ candidate.biography }}</p>
-            <p class="text-muted small">Добавлен: {{ new Date(candidate.createdAt).toLocaleDateString('ru-RU') }}</p>
-          </div>
-        </div>
-      </div>
-
-      <div class="col-md-4">
-        <div class="card mb-4 shadow-sm text-center">
-          <div class="card-body">
-            <i class="bi bi-hand-thumbs-up text-primary" style="font-size: 3rem;"></i>
-            <h3 class="display-6 mt-2">{{ candidate.voteCount }}</h3>
-            <p class="text-muted">всего голосов</p>
-          </div>
-        </div>
-
-        <div v-if="auth.isAuthenticated" class="card shadow-sm">
-          <div class="card-body">
-            <h5 class="card-title">Голосование</h5>
-            <div v-if="candidate.hasVoted" class="alert alert-success">
-              <i class="bi bi-check-circle"></i> Вы уже проголосовали за этого кандидата
-            </div>
-            <form v-else @submit.prevent="submitVote">
-              <div class="mb-3">
-                <label class="form-label">Комментарий (необязательно)</label>
-                <textarea v-model="comment" class="form-control" rows="2" maxlength="200" placeholder="Ваше мнение о кандидате"></textarea>
-              </div>
-              <button type="submit" class="btn btn-primary w-100" :disabled="voting">
-                <i v-if="voting" class="spinner-border spinner-border-sm"></i>
-                <i v-else class="bi bi-check-lg"></i> Голосовать
-              </button>
-            </form>
-          </div>
-        </div>
-        <div v-else class="card shadow-sm">
-          <div class="card-body text-center">
-            <i class="bi bi-person-lock" style="font-size: 2rem;"></i>
-            <p class="mt-2">Чтобы голосовать:</p>
-            <router-link to="/login" class="btn btn-outline-primary btn-sm w-100 mb-1"><i class="bi bi-box-arrow-in-right"></i> Войти</router-link>
-            <router-link to="/register" class="btn btn-outline-success btn-sm w-100"><i class="bi bi-person-plus"></i> Регистрация</router-link>
-          </div>
-        </div>
-
-        <div v-if="message" :class="'alert mt-3 ' + (messageType === 'success' ? 'alert-success' : 'alert-danger')">
-          {{ message }}
-        </div>
+    <div class="profile">
+      <img :src="candidate.photoUrl" alt="" class="photo" />
+      <div class="profile-info">
+        <h1>{{ candidate.fullName }}</h1>
+        <span class="category-tag">{{ candidate.category }}</span>
+        <div class="vote-count">🗳️ {{ candidate.voteCount }} голосов</div>
       </div>
     </div>
-  </template>
+
+    <div class="section">
+      <h2>О кандидате</h2>
+      <p class="bio">{{ candidate.description }}</p>
+      <p class="bio">{{ candidate.biography }}</p>
+    </div>
+
+    <div class="vote-section">
+      <button
+        v-if="!auth.user"
+        disabled
+        class="btn vote-btn"
+      >Авторизуйтесь, чтобы голосовать</button>
+      <button
+        v-else-if="candidate.hasVoted"
+        class="btn voted-btn"
+        disabled
+      >✓ Вы уже проголосовали</button>
+      <button
+        v-else
+        @click="vote"
+        :disabled="voting"
+        class="btn vote-btn active"
+      >{{ voting ? 'Обработка...' : 'Проголосовать' }}</button>
+    </div>
+  </div>
+  <div v-else class="loading">Загрузка...</div>
 </template>
 
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
-import api from '../api'
-import { useAuthStore } from '../stores/auth'
+import { useAuthStore } from '@/stores/auth'
+import api from '@/api'
 
 const route = useRoute()
 const auth = useAuthStore()
-const loading = ref(true)
-const error = ref('')
 const candidate = ref(null)
-const comment = ref('')
 const voting = ref(false)
-const message = ref('')
-const messageType = ref('success')
 
-async function fetchCandidate() {
-  loading.value = true
-  try {
-    const { data } = await api.get(`/candidates/${route.params.id}`)
-    candidate.value = data
-  } catch (e) {
-    error.value = 'Кандидат не найден'
-  } finally {
-    loading.value = false
-  }
-}
+onMounted(async () => {
+  const res = await api.get(`/candidates/${route.params.id}`)
+  candidate.value = res.data
+})
 
-async function submitVote() {
+async function vote() {
   voting.value = true
-  message.value = ''
-  try {
-    await api.post(`/candidates/${candidate.value.id}/vote`, { comment: comment.value })
-    message.value = 'Ваш голос учтён'
-    messageType.value = 'success'
-    candidate.value.hasVoted = true
-    candidate.value.voteCount++
-  } catch (e) {
-    message.value = e.response?.data?.message || 'Ошибка голосования'
-    messageType.value = 'error'
-  } finally {
-    voting.value = false
-  }
+  await api.post(`/candidates/${route.params.id}/vote`)
+  candidate.value.hasVoted = true
+  candidate.value.voteCount++
+  voting.value = false
+}
+</script>
+
+<style scoped>
+.back {
+  display: inline-block;
+  margin-bottom: 20px;
+  color: #666;
+  font-size: 0.9rem;
+}
+.back:hover {
+  color: #4361ee;
+}
+.profile {
+  display: flex;
+  gap: 24px;
+  align-items: center;
+  margin-bottom: 24px;
+  padding: 24px;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+.photo {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+.profile-info h1 {
+  margin-bottom: 8px;
+}
+.category-tag {
+  display: inline-block;
+  font-size: 0.8rem;
+  background: #eef0ff;
+  color: #4361ee;
+  padding: 4px 14px;
+  border-radius: 12px;
+  font-weight: 500;
+  margin-bottom: 8px;
+}
+.vote-count {
+  font-size: 1rem;
+  color: #666;
+  margin-top: 4px;
+}
+.section {
+  background: white;
+  padding: 24px;
+  border-radius: 12px;
+  margin-bottom: 24px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+.bio {
+  line-height: 1.7;
+  color: #444;
+  margin-bottom: 8px;
+}
+.vote-section {
+  text-align: center;
+  padding: 24px;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+.btn {
+  padding: 14px 40px;
+  border-radius: 10px;
+  font-size: 1rem;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.vote-btn {
+  background: #e0e0e0;
+  color: #999;
+}
+.vote-btn.active {
+  background: #4361ee;
+  color: white;
+}
+.vote-btn.active:hover {
+  background: #3651d4;
+  transform: translateY(-1px);
+}
+.voted-btn {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+.loading {
+  text-align: center;
+  padding: 40px;
+  color: #888;
 }
 
-onMounted(fetchCandidate)
-</script>
+@media (max-width: 600px) {
+  .profile { flex-direction: column; text-align: center; }
+}
+</style>

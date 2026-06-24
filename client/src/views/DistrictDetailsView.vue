@@ -1,125 +1,191 @@
 <template>
-  <div v-if="loading" class="text-center py-5">
-    <div class="spinner-border text-success" role="status"></div>
+  <div v-if="district" class="details">
+    <RouterLink to="/districts" class="back">← Назад к районам</RouterLink>
+
+    <div class="header">
+      <img :src="district.district.imageUrl" alt="" class="photo" />
+      <div class="header-info">
+        <h1>{{ district.district.name }}</h1>
+        <div class="meta">
+          <span>👥 {{ district.district.population?.toLocaleString() }}</span>
+          <span>📐 {{ district.district.area }} км²</span>
+        </div>
+        <p>{{ district.district.description }}</p>
+      </div>
+    </div>
+
+    <h2>Проекты развития ({{ district.projects.length }})</h2>
+    <div class="projects">
+      <div v-for="p in district.projects" :key="p.id" class="project">
+        <div class="project-header">
+          <h3>{{ p.title }}</h3>
+          <span class="category-tag">{{ p.category }}</span>
+        </div>
+        <p class="project-desc">{{ p.description }}</p>
+        <div class="project-footer">
+          <span class="budget">💰 {{ p.budgetEstimate }}</span>
+          <span class="project-votes">🗳️ {{ p.voteCount }}</span>
+          <button
+            v-if="auth.user && !p.hasVoted"
+            @click="voteForProject(p.id)"
+            :disabled="voting"
+            class="btn vote-btn"
+          >{{ voting ? '...' : 'Поддержать' }}</button>
+          <span v-else-if="p.hasVoted" class="voted-badge">✓ Поддержано</span>
+        </div>
+      </div>
+    </div>
   </div>
-
-  <div v-else-if="error" class="alert alert-danger">{{ error }}</div>
-
-  <template v-else-if="data">
-    <nav aria-label="breadcrumb">
-      <ol class="breadcrumb">
-        <li class="breadcrumb-item"><router-link to="/districts">Районы</router-link></li>
-        <li class="breadcrumb-item active">{{ data.district.name }}</li>
-      </ol>
-    </nav>
-
-    <div class="row mb-4">
-      <div class="col-md-4 text-center">
-        <img :src="data.district.imageUrl" :alt="data.district.name" class="img-fluid mb-3" style="max-height: 150px;" @error="e => e.target.style.display='none'" />
-      </div>
-      <div class="col-md-8">
-        <h2>{{ data.district.name }}</h2>
-        <p>{{ data.district.description }}</p>
-        <div class="row text-muted small">
-          <div class="col-auto"><i class="bi bi-people"></i> Население: {{ data.district.population.toLocaleString() }} чел.</div>
-          <div class="col-auto"><i class="bi bi-geo-alt"></i> Площадь: {{ data.district.area }} км²</div>
-        </div>
-      </div>
-    </div>
-
-    <h3 class="mb-3">Проекты благоустройства</h3>
-    <p class="text-muted mb-4">Проголосуйте за проекты, которые хотите видеть в первую очередь</p>
-
-    <div v-if="message" :class="'alert ' + (messageType === 'success' ? 'alert-success' : 'alert-danger')">
-      {{ message }}
-    </div>
-
-    <div class="row">
-      <div v-for="project in data.projects" :key="project.id" class="col-md-6 mb-3">
-        <div class="card h-100" :class="project.hasVoted ? 'border-success' : ''">
-          <div class="card-body">
-            <div class="d-flex justify-content-between align-items-start">
-              <div>
-                <h5 class="card-title">{{ project.title }}</h5>
-                <span class="badge bg-secondary mb-2">{{ project.category }}</span>
-              </div>
-              <span class="badge bg-warning text-dark">{{ project.budgetEstimate }}</span>
-            </div>
-            <p class="card-text small">{{ project.description }}</p>
-            <div class="d-flex justify-content-between align-items-center">
-              <small class="text-muted">
-                <i class="bi bi-hand-thumbs-up"></i> Голосов: <strong>{{ project.voteCount }}</strong>
-              </small>
-              <template v-if="auth.isAuthenticated">
-                <span v-if="project.hasVoted" class="badge bg-success">
-                  <i class="bi bi-check-circle"></i> Вы проголосовали
-                </span>
-                <button v-else class="btn btn-outline-success btn-sm" @click="voteForProject(project.id)" :disabled="votingId === project.id">
-                  <i v-if="votingId === project.id" class="spinner-border spinner-border-sm"></i>
-                  <i v-else class="bi bi-hand-thumbs-up"></i> Голосовать
-                </button>
-              </template>
-              <router-link v-else to="/login" class="btn btn-outline-primary btn-sm">
-                Войдите, чтобы голосовать
-              </router-link>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div v-if="!data.projects.length" class="alert alert-info">
-      Проекты благоустройства пока не добавлены
-    </div>
-  </template>
+  <div v-else class="loading">Загрузка...</div>
 </template>
 
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
-import api from '../api'
-import { useAuthStore } from '../stores/auth'
+import { useAuthStore } from '@/stores/auth'
+import api from '@/api'
 
 const route = useRoute()
 const auth = useAuthStore()
-const loading = ref(true)
-const error = ref('')
-const data = ref(null)
-const votingId = ref(null)
-const message = ref('')
-const messageType = ref('success')
+const district = ref(null)
+const voting = ref(false)
 
-async function fetchDistrict() {
-  loading.value = true
-  try {
-    const { data: result } = await api.get(`/districts/${route.params.id}`)
-    data.value = result
-  } catch (e) {
-    error.value = 'Район не найден'
-  } finally {
-    loading.value = false
-  }
-}
+onMounted(async () => {
+  const res = await api.get(`/districts/${route.params.id}`)
+  district.value = res.data
+})
 
 async function voteForProject(projectId) {
-  votingId.value = projectId
-  message.value = ''
-  try {
-    await api.post(`/districts/projects/${projectId}/vote`)
-    message.value = 'Ваш голос за проект учтён'
-    messageType.value = 'success'
-    const project = data.value.projects.find(p => p.id === projectId)
-    if (project) {
-      project.hasVoted = true
-      project.voteCount++
-    }
-  } catch (e) {
-    message.value = e.response?.data?.message || 'Ошибка голосования'
-    messageType.value = 'error'
-  } finally {
-    votingId.value = null
+  voting.value = true
+  await api.post(`/districts/projects/${projectId}/vote`)
+  const project = district.value.projects.find(p => p.id === projectId)
+  if (project) {
+    project.hasVoted = true
+    project.voteCount++
   }
+  voting.value = false
+}
+</script>
+
+<style scoped>
+.back {
+  display: inline-block;
+  margin-bottom: 16px;
+  color: #666;
+  font-size: 0.9rem;
+}
+.back:hover {
+  color: #4361ee;
+}
+.header {
+  display: flex;
+  gap: 24px;
+  margin-bottom: 24px;
+  padding: 24px;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+.photo {
+  width: 200px;
+  height: 150px;
+  object-fit: cover;
+  border-radius: 10px;
+  flex-shrink: 0;
+}
+.header-info h1 {
+  margin-bottom: 8px;
+}
+.header-info p {
+  color: #444;
+  line-height: 1.5;
+  margin-top: 8px;
+}
+.meta {
+  display: flex;
+  gap: 16px;
+  font-size: 0.9rem;
+  color: #666;
+}
+.projects {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.project {
+  background: white;
+  padding: 20px;
+  border-radius: 12px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+.project-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.project-header h3 {
+  font-size: 1.1rem;
+}
+.category-tag {
+  font-size: 0.75rem;
+  background: #eef0ff;
+  color: #4361ee;
+  padding: 2px 10px;
+  border-radius: 10px;
+  font-weight: 500;
+}
+.project-desc {
+  color: #555;
+  line-height: 1.5;
+  margin-bottom: 12px;
+}
+.project-footer {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.budget {
+  font-size: 0.9rem;
+  color: #2e7d32;
+  font-weight: 500;
+}
+.project-votes {
+  font-size: 0.85rem;
+  color: #888;
+}
+.btn {
+  padding: 8px 20px;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.vote-btn {
+  background: #4361ee;
+  color: white;
+}
+.vote-btn:hover {
+  background: #3651d4;
+}
+.voted-badge {
+  font-size: 0.8rem;
+  background: #e8f5e9;
+  color: #2e7d32;
+  padding: 4px 12px;
+  border-radius: 8px;
+  font-weight: 500;
+}
+.loading {
+  text-align: center;
+  padding: 40px;
+  color: #888;
 }
 
-onMounted(fetchDistrict)
-</script>
+@media (max-width: 600px) {
+  .header { flex-direction: column; }
+  .photo { width: 100%; height: 180px; }
+}
+</style>

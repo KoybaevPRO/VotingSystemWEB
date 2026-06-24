@@ -1,55 +1,94 @@
 <template>
-  <div v-if="loading" class="text-center py-5">
-    <div class="spinner-border text-success" role="status"></div>
-  </div>
+  <div class="districts">
+    <h1>Районы Владикавказа</h1>
 
-  <template v-else>
-    <div class="text-center mb-5">
-      <h1 class="display-5">Благоустройство районов Владикавказа</h1>
-      <p class="lead text-muted">Выберите район и проголосуйте за проекты по его благоустройству</p>
-    </div>
-
-    <div class="row row-cols-1 row-cols-md-2 row-cols-lg-4 g-4">
-      <div v-for="district in districts" :key="district.id" class="col d-flex">
-        <div class="card h-100 shadow-sm w-100">
-          <div class="card-body text-center d-flex flex-column">
-            <div class="mb-2">
-              <img :src="district.imageUrl" :alt="district.name" width="80" height="80" @error="e => e.target.style.display='none'" />
-            </div>
-            <h5 class="card-title">{{ district.name }}</h5>
-            <p class="card-text small text-muted flex-grow-1">{{ district.description }}</p>
-            <div class="d-flex justify-content-around mb-2 small text-muted">
-              <span><i class="bi bi-people"></i> {{ district.population.toLocaleString() }}</span>
-              <span><i class="bi bi-geo-alt"></i> {{ district.area }} км²</span>
-            </div>
-            <div class="mt-auto">
-              <p class="mb-2"><span class="badge bg-info">{{ district.projectCount }} проектов</span></p>
-              <router-link :to="`/districts/${district.id}`" class="btn btn-outline-success w-100">
-                <i class="bi bi-eye"></i> Подробнее и голосование
-              </router-link>
-            </div>
+    <div v-if="loading" class="loading">Загрузка...</div>
+    <div v-else class="grid">
+      <div v-for="d in districts" :key="d.id" class="card">
+        <img :src="d.imageUrl" alt="" class="photo" />
+        <div class="card-body">
+          <RouterLink :to="`/districts/${d.id}`" class="name">{{ d.name }}</RouterLink>
+          <p class="desc">{{ d.description }}</p>
+          <div class="meta">
+            <span>👥 {{ d.population?.toLocaleString() }}</span>
+            <span>📐 {{ d.area }} км²</span>
+            <span>📋 {{ d.projectCount }} проектов</span>
           </div>
         </div>
       </div>
     </div>
-  </template>
+  </div>
 </template>
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import api from '../api'
+import api from '@/api'
 
-const loading = ref(true)
 const districts = ref([])
+const loading = ref(true)
 
 onMounted(async () => {
-  try {
-    const { data } = await api.get('/districts')
-    districts.value = data
-  } catch (e) {
-    console.error(e)
-  } finally {
-    loading.value = false
-  }
+  const res = await api.get('/districts')
+  districts.value = res.data
+  loading.value = false
 })
 </script>
+
+<style scoped>
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 16px;
+}
+.card {
+  background: white;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+.card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+.photo {
+  width: 100%;
+  height: 160px;
+  object-fit: cover;
+}
+.card-body {
+  padding: 16px;
+}
+.name {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #1a1a2e;
+  display: block;
+  margin-bottom: 6px;
+}
+.name:hover {
+  color: #4361ee;
+}
+.desc {
+  font-size: 0.9rem;
+  color: #666;
+  line-height: 1.5;
+  margin-bottom: 12px;
+}
+.meta {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-size: 0.8rem;
+  color: #888;
+}
+.loading {
+  text-align: center;
+  padding: 40px;
+  color: #888;
+}
+
+@media (max-width: 600px) {
+  .grid { grid-template-columns: 1fr; }
+}
+</style>

@@ -1,103 +1,135 @@
 <template>
-  <div v-if="loading" class="text-center py-5">
-    <div class="spinner-border text-primary" role="status"></div>
+  <div class="my-votes">
+    <h1>Мои голоса</h1>
+
+    <div v-if="loading" class="loading">Загрузка...</div>
+
+    <div v-else-if="votes.length === 0" class="empty">
+      <p>Вы ещё не голосовали</p>
+      <div class="empty-actions">
+        <RouterLink to="/candidates" class="btn">К кандидатам</RouterLink>
+        <RouterLink to="/districts" class="btn">К районам</RouterLink>
+      </div>
+    </div>
+
+    <div v-else class="list">
+      <div v-for="v in votes" :key="v.id" class="vote-card">
+        <div class="vote-icon">{{ v.type === 'candidate' ? '👤' : '🏘️' }}</div>
+        <div class="vote-body">
+          <template v-if="v.type === 'candidate'">
+            <RouterLink :to="`/candidates/${v.candidateId}`" class="vote-title">
+              {{ v.candidateName }}
+            </RouterLink>
+            <span class="vote-subtitle">{{ v.candidateCategory }}</span>
+          </template>
+          <template v-else>
+            <span class="vote-title">{{ v.projectTitle }}</span>
+            <span class="vote-subtitle">{{ v.districtName }} · {{ v.projectCategory }}</span>
+          </template>
+          <p v-if="v.comment" class="comment">💬 {{ v.comment }}</p>
+          <span class="date">{{ new Date(v.voteDate).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' }) }}</span>
+        </div>
+      </div>
+    </div>
   </div>
-
-  <template v-else>
-    <h1 class="mb-4">Мои голоса</h1>
-
-    <ul class="nav nav-tabs mb-4">
-      <li class="nav-item">
-        <a class="nav-link" :class="{ active: tab === 'all' }" href="#" @click.prevent="tab = 'all'">Все</a>
-      </li>
-      <li class="nav-item">
-        <a class="nav-link" :class="{ active: tab === 'candidate' }" href="#" @click.prevent="tab = 'candidate'">За кандидатов</a>
-      </li>
-      <li class="nav-item">
-        <a class="nav-link" :class="{ active: tab === 'improvement' }" href="#" @click.prevent="tab = 'improvement'">За благоустройство</a>
-      </li>
-    </ul>
-
-    <div v-if="!filteredVotes.length" class="alert alert-info d-flex align-items-center gap-3">
-      <i class="bi bi-info-circle fs-4"></i>
-      <span>У вас пока нет голосов в этой категории.</span>
-      <router-link v-if="tab !== 'improvement'" to="/candidates" class="btn btn-outline-primary btn-sm ms-auto">
-        <i class="bi bi-people"></i> Список кандидатов
-      </router-link>
-      <router-link v-else to="/districts" class="btn btn-outline-success btn-sm ms-auto">
-        <i class="bi bi-buildings"></i> Районы города
-      </router-link>
-    </div>
-
-    <div v-else class="table-responsive">
-      <table class="table table-hover align-middle">
-        <thead :class="tab === 'improvement' ? 'table-success' : 'table-dark'">
-          <tr>
-            <th>Тип</th>
-            <th>Объект</th>
-            <th>Категория</th>
-            <th>Район</th>
-            <th>Дата</th>
-            <th>Комментарий</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="vote in filteredVotes" :key="vote.id">
-            <td>
-              <span class="badge" :class="vote.type === 'candidate' ? 'bg-primary' : 'bg-success'">
-                {{ vote.type === 'candidate' ? 'Кандидат' : 'Проект' }}
-              </span>
-            </td>
-            <td>
-              <template v-if="vote.type === 'candidate'">
-                <router-link :to="`/candidates/${vote.candidateId}`" class="fw-semibold text-decoration-none">
-                  {{ vote.candidateName }}
-                </router-link>
-              </template>
-              <template v-else>
-                <span class="fw-semibold">{{ vote.projectTitle }}</span>
-              </template>
-            </td>
-            <td><span class="badge bg-secondary">{{ vote.candidateCategory || vote.projectCategory }}</span></td>
-            <td class="text-muted small">{{ vote.districtName || '—' }}</td>
-            <td>{{ new Date(vote.voteDate).toLocaleString('ru-RU') }}</td>
-            <td class="text-muted small">{{ vote.comment || '—' }}</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-  </template>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
-import api from '../api'
+import { ref, onMounted } from 'vue'
+import api from '@/api'
 
+const votes = ref([])
 const loading = ref(true)
-const tab = ref('all')
-const candidateVotes = ref([])
-const improvementVotes = ref([])
-
-const filteredVotes = computed(() => {
-  if (tab.value === 'all') {
-    return [...candidateVotes.value, ...improvementVotes.value].sort((a, b) => new Date(b.voteDate) - new Date(a.voteDate))
-  }
-  if (tab.value === 'candidate') return candidateVotes.value
-  return improvementVotes.value
-})
 
 onMounted(async () => {
   try {
-    const [candidateRes, improvementRes] = await Promise.all([
+    const [candRes, distRes] = await Promise.all([
       api.get('/candidates/my-votes'),
       api.get('/districts/my-votes')
     ])
-    candidateVotes.value = candidateRes.data
-    improvementVotes.value = improvementRes.data
-  } catch (e) {
-    console.error(e)
-  } finally {
-    loading.value = false
-  }
+    const all = [...(candRes.data || []), ...(distRes.data || [])]
+    all.sort((a, b) => new Date(b.voteDate) - new Date(a.voteDate))
+    votes.value = all
+  } catch {}
+  loading.value = false
 })
 </script>
+
+<style scoped>
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.vote-card {
+  display: flex;
+  gap: 16px;
+  padding: 20px;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  align-items: flex-start;
+}
+.vote-icon {
+  font-size: 1.5rem;
+  width: 44px;
+  height: 44px;
+  background: #f0f2f5;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.vote-body {
+  flex: 1;
+}
+.vote-title {
+  font-weight: 600;
+  color: #1a1a2e;
+  display: block;
+  margin-bottom: 2px;
+}
+.vote-subtitle {
+  font-size: 0.8rem;
+  color: #888;
+  display: block;
+  margin-bottom: 4px;
+}
+.comment {
+  font-size: 0.9rem;
+  color: #555;
+  margin-top: 4px;
+}
+.date {
+  font-size: 0.8rem;
+  color: #aaa;
+  margin-top: 4px;
+  display: block;
+}
+.loading, .empty {
+  text-align: center;
+  padding: 48px;
+  color: #888;
+}
+.empty-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  margin-top: 16px;
+}
+.btn {
+  display: inline-block;
+  padding: 10px 24px;
+  background: #4361ee;
+  color: white;
+  border-radius: 8px;
+  font-weight: 500;
+  font-size: 0.9rem;
+  text-decoration: none;
+}
+.btn:hover {
+  background: #3651d4;
+  text-decoration: none;
+}
+</style>

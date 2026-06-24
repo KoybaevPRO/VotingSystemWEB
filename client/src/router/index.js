@@ -1,15 +1,24 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import HomeView from '@/views/HomeView.vue'
+import CandidatesView from '@/views/CandidatesView.vue'
+import CandidateDetailsView from '@/views/CandidateDetailsView.vue'
+import DistrictsView from '@/views/DistrictsView.vue'
+import DistrictDetailsView from '@/views/DistrictDetailsView.vue'
+import AboutView from '@/views/AboutView.vue'
+import LoginView from '@/views/LoginView.vue'
+import RegisterView from '@/views/RegisterView.vue'
+import MyVotesView from '@/views/MyVotesView.vue'
 
 const routes = [
-  { path: '/', name: 'Home', component: () => import('../views/HomeView.vue') },
-  { path: '/about', name: 'About', component: () => import('../views/AboutView.vue') },
-  { path: '/candidates', name: 'Candidates', component: () => import('../views/CandidatesView.vue') },
-  { path: '/candidates/:id', name: 'CandidateDetails', component: () => import('../views/CandidateDetailsView.vue') },
-  { path: '/districts', name: 'Districts', component: () => import('../views/DistrictsView.vue') },
-  { path: '/districts/:id', name: 'DistrictDetails', component: () => import('../views/DistrictDetailsView.vue') },
-  { path: '/my-votes', name: 'MyVotes', component: () => import('../views/MyVotesView.vue'), meta: { requiresAuth: true } },
-  { path: '/login', name: 'Login', component: () => import('../views/LoginView.vue') },
-  { path: '/register', name: 'Register', component: () => import('../views/RegisterView.vue') },
+  { path: '/', name: 'home', component: HomeView },
+  { path: '/candidates', name: 'candidates', component: CandidatesView },
+  { path: '/candidates/:id', name: 'candidate-details', component: CandidateDetailsView },
+  { path: '/districts', name: 'districts', component: DistrictsView },
+  { path: '/districts/:id', name: 'district-details', component: DistrictDetailsView },
+  { path: '/about', name: 'about', component: AboutView },
+  { path: '/login', name: 'login', component: LoginView },
+  { path: '/register', name: 'register', component: RegisterView },
+  { path: '/my-votes', name: 'my-votes', component: MyVotesView, meta: { requiresAuth: true } }
 ]
 
 const router = createRouter({
